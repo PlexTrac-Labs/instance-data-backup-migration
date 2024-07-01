@@ -66,7 +66,6 @@ class ColorPrint:
         return f'\x1b[1;37m{message}\x1b[0m'
 
 
-
 class TermEscapeCodeFormatter(logging.Formatter):
     """
     A class to strip the color escape codes when printing to non ANSI terminals, like a text file
@@ -78,7 +77,6 @@ class TermEscapeCodeFormatter(logging.Formatter):
         escape_re = re.compile(r'\x1b\[[0-9;]*m')
         record.msg = re.sub(escape_re, "", str(record.msg))
         return super().format(record)
-
 
 
 class LogFormatHandler():
@@ -126,7 +124,6 @@ class LogFormatHandler():
 
     def exception(self, message):
         self.logger.exception(ColorPrint.print_yellow(f'[EXCEPTION] {message}'))
-
 
 
 log = LogFormatHandler(settings.console_log_level, settings.file_log_level, settings.save_logs_to_file)

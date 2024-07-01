@@ -100,7 +100,7 @@ def get_page_of_clients(page: int = 0, clients: list = [], total_clients: int = 
     
     return True
 
-def get_page_of_reports(page: int, reports: list = [], total_reports: int = -1, auth:Auth=None) -> None:
+def get_page_of_reports(page: int = 0, reports: list = [], total_reports: int = -1, auth:Auth=None) -> None:
     """
     Handles traversing pagination results to create a list of all items.
 

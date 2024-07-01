@@ -1,7 +1,16 @@
-# base-API-script
-This repo can be used as a starting point for developing a Python script that utilizes the Plextrac API in some way. It acts as a mini framework with some helpful utilities that make endpoint calls easier. These utilities include a logger, authentication handler, API wrapper library that stores endpoint URLs, and other general utility function that revolve around user inputs, data sanitization, and data validation.
+# instance-data-backup-migration
+Since there are limited options to bulk export data from Plextrac within the platform, this script offers a solution to getting large amounts of data out of Plextrac. This is generally with the intent to reimport it into another instance, but it could be stored for backup as well.
 
-To get started make a copy of this repo and read through the main.py file which goes more in-depth about the utilities available. You can also run the script with the instructions below to see the output of the examples used when describing the utilities available. Once you know what's available, you can remove the examples, and start writing your script in the main.py file.
+This script is broken up into multiple workflows that manage exporting and reimporting certain modules of data.
+
+Current modules include:
+- Authentication to an instance
+- Clients and reports
+
+#### Limitations
+One other backup option is to backup the entire DB. This backup can then be restored to a new instance, effectively cloning all data to the new instance. This method is preferred and this script is only meant for backing up and restoring smaller sections of data in the platform.
+
+There are limitations with this script's approach, which are generally related to IDs. This script will read and backup data from one instance then create new data in a separate instance with the same values. However, you can't specific the IDs of objects on creation. This becomes problematic when you're trying to create new data that relates to other objects. There won't be a way to maintain a relationship between 2 objects, if the relationship is, that one objects stores the ID of another object, since the second object will have a different ID when it's recreated. Specific limitations will be noted in the info block that is display during scrip execution when a certain workflow is selected.
 
 # Requirements
 - [Python 3+](https://www.python.org/downloads/)
@@ -38,7 +47,4 @@ The following values can either be added to the `config.yaml` file or entered wh
 - Password
 
 ## Script Execution Flow
-- Starts executing the main.py file
-- Prints script info stored in settings.py
-- Reads in values from config.yaml file
-- Goes through list of examples to show the user current functionality that can be utilized
+The script has a main menu and follows a state-like flow passing off execution to whichever workflow is selected. Any critical errors will return you to the main menu. Completing a workflow will also return you to the main menu. From here, you could continue exporting another data module, or authenticating to a different instance and starting to reimport data.

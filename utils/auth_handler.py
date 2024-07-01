@@ -9,7 +9,7 @@ import utils.input_utils as input
 
 class Auth():
     
-    def __init__(self, args):
+    def __init__(self, args={}):
         self.base_url = args.get('instance_url')
         self.cf_token = args.get('cf_token')
         self.username = args.get('username')
