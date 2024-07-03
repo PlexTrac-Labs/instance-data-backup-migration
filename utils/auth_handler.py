@@ -87,10 +87,9 @@ class Auth():
             try:
                 if response.json.get('text') == "Authenticate at /authenticate":
                     log.success("Validated instance URL")
-                    
             except Exception as e: # potential plextrac internal instance running behind Cloudflare
                 if self.cf_token == None:
-                    option = input.user_options("That URL points to a running verson of Plextrac. However, the API did not respond.\nThere might be an additional layer of security. Try adding Cloudflare auth token?", "Do you want to try adding a Cloudflare token?", ['y', 'n'])    
+                    option = input.user_options("That URL points to a running version of Plextrac. However, the API did not respond.\nThere might be an additional layer of security. Try adding Cloudflare auth token?", "Do you want to try adding a Cloudflare token?", ['y', 'n'])    
                     if option == 'y':
                         return self.handle_cf_instance_url()
                 else:
@@ -117,9 +116,14 @@ class Auth():
         else:
             log.info(f'Using cf_token from config...')
 
-        response = api.tenant.root_request(self.base_url, headers={"cf-access-token": self.cf_token})
-            
-        if response.json.get('text') != "Authenticate at /authenticate":
+        try:
+            response = api.tenant.root_request(self.base_url, headers={"cf-access-token": self.cf_token})
+            if response.json.get('text') != "Authenticate at /authenticate":
+                if input.retry("Could not validate instance URL."):
+                    self.cf_token = None
+                    return self.handle_instance_url()
+        except Exception as e:
+            log.exception(e)
             if input.retry("Could not validate instance URL."):
                 self.cf_token = None
                 return self.handle_instance_url()
@@ -147,20 +151,27 @@ class Auth():
             "password": self.password
         }
         
-        response = api._authentication.authenticate.authentication(self.base_url, self.auth_headers, authenticate_data)
-        
-        # the following conditional can fail due to:
-        # - invalid credentials
-        # - if the instance is setup to requre mfa and use user does not have mfa setup
-        # - other
-        # the api response is purposely non-descript to prevent gaining information about the authentication process
-        if response.json.get('status') != "success":
+        try:
+            response = api._authentication.authenticate.authentication(self.base_url, self.auth_headers, authenticate_data)
+            # the following conditional can fail due to:
+            # - invalid credentials
+            # - if the instance is setup to require mfa and use user does not have mfa setup
+            # - other
+            # the api response is purposely nondescript to prevent gaining information about the authentication process
+            if response.json.get('status') != "success":
+                if input.retry("Could not authenticate with entered credentials."):
+                    self.username = None
+                    self.password = None
+                    self.tenant_id = None
+                    return self.handle_authentication()
+        except Exception as e:
+            log.exception(e)
             if input.retry("Could not authenticate with entered credentials."):
                 self.username = None
                 self.password = None
                 self.tenant_id = None
                 return self.handle_authentication()
-        
+
         self.tenant_id = response.json.get('tenant_id')
 
         if response.json.get('mfa_enabled'):
@@ -171,9 +182,14 @@ class Auth():
                 "token": input.prompt_user("Please enter your 6 digit MFA code")
             }
             
-            response = api._authentication.authenticate.multi_factor_authentication(self.base_url, self.auth_headers, mfa_auth_data)
-            if response.json.get('status') != "success":
-                if input.retry("Invalid MFA Code."):
+            try:
+                response = api._authentication.authenticate.multi_factor_authentication(self.base_url, self.auth_headers, mfa_auth_data)
+                if response.json.get('status') != "success":
+                    if input.retry("Invalid MFA code."):
+                        return self.handle_authentication()
+            except Exception as e:
+                log.exception(e)
+                if input.retry("Failed to validate MFA code"):
                     return self.handle_authentication()
 
         self.add_auth_header(response.json.get('token'))
