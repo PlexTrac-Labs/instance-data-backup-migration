@@ -13,9 +13,9 @@ Another backup option is to backup the entire DB. This backup can then be restor
 There are limitations with this script's approach, which are generally related to IDs. This script will read and backup data from one instance then create new data in a separate instance with the same values. However, you can't specific the IDs of objects on creation. This becomes problematic when you're trying to create new data that relates to other objects. There won't be a way to maintain a relationship between 2 objects, if the relationship is, that one objects stores the ID of another object, since the second object will have a different ID when it's recreated. Specific limitations will be noted in the info block that is display during scrip execution when a certain workflow is selected.
 
 # Requirements
-- [Python 3+](https://www.python.org/downloads/)
+- [Python 3.7+](https://www.python.org/downloads/)
 - [pip](https://pip.pypa.io/en/stable/installation/)
-- [pipenv](https://pipenv.pypa.io/en/latest/install/)
+- [pipenv](https://pipenv.pypa.io/en/latest/)
 
 # Installing
 After installing Python, pip, and pipenv, run the following commands to setup the Python virtual environment.
