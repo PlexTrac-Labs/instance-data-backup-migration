@@ -2,47 +2,29 @@ import json
 import io
 import zipfile
 import os
+from typing import List
+from dataclasses import dataclass
+from rich import print
+
 from tkinter import Tk
 from tkinter.filedialog import askopenfilenames
-
 import beaupy as binput
 
 import utils.globals as globals
 import utils.log_handler as logger
 log = logger.log
+from utils.log_handler import IterationMetrics
 from utils.auth_handler import Auth
 import utils.data_utils as data
 import utils.general_utils as utils
 import api
 
+
+@dataclass
+class ClientZIP:
+    client: dict|None
+    reports: List[dict]
 class ClientReportsWorkflow:
-
-    def __init__(self):
-        pass
-
-
-    def display_title_card(self):
-        title_card = [
-            " Clients and Reports Workflow                                     ",
-            "------------------------------------------------------------------",
-            """
-    This workflow can import/export clients from Plextrac. You can choose whether
-    reports under a client should be moved as well. For each client exported, a ZIP
-    file is created. This ZIP file can be used to reimport the client into a
-    different Plextrac instance.
-
-    Overview of Next Steps:
-    - Export clients
-      - select which clients to export
-      - choose whether to export reports with client
-    - Import clients
-      - add ZIP files of clients to import
-      - choose whether to check if the client exists
-      - choose whether to export reports with client
-      """]
-        for i in title_card:
-            print(i)
-
     
     def create_client_zip_with_json_objects(self, client, reports, folder_path):
         zip_buffer = io.BytesIO()
@@ -63,9 +45,11 @@ class ClientReportsWorkflow:
                 json_data = json_buffer.getvalue()
                 zip_file.writestr(utils.sanitize_file_name(f'{report["report_data"]["name"]}_{report["report_data"]["id"]}_{globals.script_time}.ptrac'), json_data)
 
+        # save ZIP file
         zip_file_name = utils.sanitize_file_name(f'{client["name"]}_{client["client_id"]}_{globals.script_time}.zip')
         with open(f'{folder_path}/{zip_file_name}', 'wb') as f:
             f.write(zip_buffer.getvalue())
+        log.success(f'Created client ZIP for \'{client["name"]}\' with {len(reports)} report(s)')
 
     
     def get_json_object_type(self, loaded_json):
@@ -130,6 +114,7 @@ class ClientReportsWorkflow:
         """
         Prompt the user to select multiple zip files and return their paths.
         """
+        print(f'Please select client ZIP(s) from file dialog popup...')
         root = Tk()
         root.withdraw()  # Hide the root window
         file_paths = askopenfilenames(
@@ -140,7 +125,7 @@ class ClientReportsWorkflow:
     
 
     # TODO create defined object that holds response
-    def extract_data_from_client_ZIP(self, zip_path):
+    def extract_data_from_client_ZIP(self, zip_path) -> ClientZIP:
         """
         Extract JSON files from a zip file and return them as a list of dictionaries.
         """
@@ -156,28 +141,60 @@ class ClientReportsWorkflow:
                                 client_json = json_data
                             elif self.get_json_object_type(json_data) == "ptrac":
                                 report_json_list.append(json_data)
+                            else:
+                                log.exception(f'Encountered invalid file in client ZIP \'{file_name}\'. Skipping...')
+                    else:
+                        log.exception(f'Encountered unknown file in client ZIP \'{file_name}\'. Skipping...')
             if client_json == None:
-                log.exception(f'client ZIP file \'{zip_path}\' did not contain a valid client JSON')
-                return None, None
-            return client_json, report_json_list
+                log.exception(f'Client ZIP file \'{zip_path}\' did not contain a valid client JSON')
+                return ClientZIP(None, [])
+            return ClientZIP(client_json, report_json_list)
         except Exception as e:
             log.exception(f'Could not find or load client ZIP file \'{zip_path}\'\n{e}')
-            return None, None
+            return ClientZIP(None, [])
 
 
     def start(self):
+        import main # importing here to prevent circular imports
+
+        if globals.auth == None:
+            log.info(f'Must authenticate to a Plextrac instance first')
+            globals.auth = Auth()
+            globals.auth.handle_authentication()
+
         binput.console.clear()
         log.debug(f'starting workflow \'client_reports\'')
-        self.display_title_card()
+        print(f'''[b u]Clients and Reports Workflow[/b u]
 
-        log.info(f'Would you like to import or exports clients')
-        action = binput.select([":import clients", ":export clients"], cursor=">", cursor_style='white')
+This workflow can import/export clients from Plextrac. You can choose whether
+reports under a client should be moved as well. For each client exported, a ZIP
+file is created. This ZIP file can be used to reimport the client into a
+different Plextrac instance.
+
+Overview of Steps:
+- Export clients
+  - select which clients to export
+  - choose whether to export reports with client
+- Import clients
+  - select ZIP files of clients to import
+  - choose whether to import reports with client
+  - choose whether to check if the client exists
+              
+[b]Would you like to import or exports clients[/b]''')
+        action = binput.select([":import clients", ":export clients", ":main menu"], cursor=">", cursor_style='white')
+        print(f'Selected {action[1:]}\n')
         log.debug(f'selected: {action}')
 
-        if action == "import clients":
+        if action == ":import clients":
             self.import_clients()
-        elif action == "export clients":
+        elif action == ":export clients":
             self.export_clients()
+        elif action == ":main menu":
+            main.start()
+        else:
+            log.exception(f'Selected invalid option. Exiting to main menu')
+            input(f'Press enter to continue...')
+            main.start()
 
 
     def export_clients(self):
@@ -190,10 +207,12 @@ class ClientReportsWorkflow:
         data.get_page_of_clients(clients=clients, auth=globals.auth)
         spinner.stop()
         if len(clients) < 1:
-            log.exception(f'Did not find any clients in Plextrac instance... Exiting to main menu')
+            log.exception(f'Did not find any clients in Plextrac instance. Exiting to main menu')
+            input(f'Press enter to continue...')
             main.start()
 
         # user selects clients
+        print(f'[b]Loaded Client list:[/b]')
         selected_clients = binput.select_multiple(
             options=clients,
             # need to replace square brackets with something else since beaupy uses square brackets to define styles, effectively excluding them from allowed chars
@@ -205,14 +224,20 @@ class ClientReportsWorkflow:
             pagination=True,
             page_size=10
         )
+        print(f'Selected {len(selected_clients)} client(s)\n')
 
         # prompt user for action details
+        print(f'Select options for exporting client(s)')
         export_clients_options = binput.select_multiple(
-            options=["include client reports", "exclude user data"], # TODO add option to exclude user, sensitivity
+            options=["include client reports", "exclude user data - TODO need to implement"], # TODO add option to exclude user, sensitivity
             tick_character="x",
             tick_style="green",
             cursor_style="dark_goldenrod"
         )
+        print("- including reports in client export" if "include client reports" in export_clients_options else "- ignoring reports under client(s)")
+        print("- excluding user data from client export" if "exclude user data" in export_clients_options else "- keeping user data in client export")
+        print("")
+
 
         # get and sort reports from instance
         sorted_client_reports = [[] for client in selected_clients]
@@ -236,16 +261,16 @@ class ClientReportsWorkflow:
             spinner.stop()
 
         # create and export client ZIPs
-        folder_path = "exported_client_ZIPs"
-        try:
-            os.mkdir(folder_path)
-        except FileExistsError as e:
-            log.debug(f'Could not create directory {folder_path}, already exists')
+        utils.create_directory("exported_data")
+        utils.create_directory("exported_data/client_ZIPs")
+        folder_path = "exported_data/client_ZIPs"
 
         for i, client in enumerate(selected_clients):
             self.create_client_zip_with_json_objects(client, sorted_client_reports[i], folder_path)
 
         # return to main menu
+        log.info(f'Finished exporting clients')
+        input(f'Press enter to continue...')
         main.start()
 
 
@@ -253,21 +278,24 @@ class ClientReportsWorkflow:
         import main # importing here to prevent circular imports
 
         # have user select client ZIP files to import
-        absolute_path = os.path.abspath("exported_client_ZIPs")
+        absolute_path = os.path.abspath("exported_data/client_ZIPs")
         if not (os.path.exists(absolute_path) and os.path.isdir(absolute_path)):
             absolute_path = self.get_script_root_path()
         zip_file_paths = self.select_zip_files(initial_directory=absolute_path)
-        log.debug(f'selected {len(zip_file_paths)} ZIP files')
+        print(f'Selected {len(zip_file_paths)} ZIP file(s)\n')
+        log.debug(f'selected {len(zip_file_paths)} ZIP file(s)')
         
         # import data from client ZIPs
+        spinner = binput.spinners.Spinner(binput.spinners.DOTS, "Importing clients from file(s)...")
+        spinner.start()
         for file_path in zip_file_paths:
-            client, report_list = self.extract_data_from_client_ZIP(file_path)
-            if client == None:
+            zip = self.extract_data_from_client_ZIP(file_path)
+            if zip.client == None:
                 log.exception(f'Skipping invalid client ZIP file \'{file_path}\'...')
                 continue
 
             # create client
-            payload = client
+            payload = zip.client
             payload.pop("cuid")
             payload.pop("tenant_id")
             payload.pop("client_id")
@@ -276,26 +304,18 @@ class ClientReportsWorkflow:
             payload.pop("doc_type")
             # TODO figure out how to handle users
             payload.pop("users")
-            payload['name'] = "Green Testing import" # TODO remove - only for testing
+            # payload['name'] = "Green Testing import" # TODO remove - only for testing
+            payload["tags"].append("green_delete") # TODO remove - only for testing
             try:
                 response = api.clients.create_client(globals.auth.base_url, globals.auth.get_auth_headers(), payload)
                 client_id = response.json['client_id']
+                log.success(f'Created client \'{payload["name"]}\'')
             except Exception as e:
-                log.exception(f'Could not create client. Skipping client and {len(report_list)} subsequent report(s)...')
+                log.exception(f'Could not create client. Skipping client and {len(zip.reports)} subsequent report(s)...')
                 continue
 
-            # # import ptracs
-            # def request_import_report_from_ptrac(base_url, headers, client_id, file):
-            #     name = "Import Ptrac Report"
-            #     root = "/api/v1"
-            #     path = f'/client/{client_id}/report/import'
-            #     multipart_form_data = {
-            #         'file': file
-            #     }
-            #     return request_post_multipart(base_url, root, path, name, headers, multipart_form_data)
-
-
-            for ptrac in report_list:
+            # import ptracs
+            for ptrac in zip.reports:
                 try:
                     json_str = json.dumps(ptrac)
                     json_file_like = io.BytesIO(json_str.encode('utf-8'))
@@ -303,11 +323,14 @@ class ClientReportsWorkflow:
                         'file': json_file_like
                     }
                     response = api.reports.import_ptrac_report(globals.auth.base_url, globals.auth.get_auth_headers(), client_id, multipart_form_data)
+                    log.success(f'Created report \'{ptrac["report_info"]["name"]}\' for client \'{zip.client["name"]}\'')
                 except Exception as e:
                     log.exception(f'Could not create report. Skipping...')
                     continue
 
-        # return to main menu
-        main.start()
+        spinner.stop()
 
-        
+        # return to main menu
+        log.info(f'Finished importing clients')
+        input(f'Press enter to continue...')
+        main.start()

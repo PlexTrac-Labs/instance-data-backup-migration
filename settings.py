@@ -3,7 +3,7 @@ import logging
 
 # LOGGING
 console_log_level = logging.INFO
-file_log_level = logging.INFO
+file_log_level = logging.DEBUG
 save_logs_to_file = False
 
 # REQUESTS

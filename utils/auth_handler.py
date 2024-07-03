@@ -28,6 +28,27 @@ class Auth():
         self.auth_headers["cf-access-token"] = cf_token
 
 
+    def get_auth_status(self) -> str:
+        # inline str return of auth
+        if time.time() - self.time_since_last_auth > 840:
+            log.info(f'User session for \'{self.username}\' on \'{self.base_url}\' instance has expired')
+            return f'[b]({self.base_url} - [red]Expired[/red])[/b]'
+        elif time.time() - self.time_since_last_auth <= 840:
+            return f'[b]({self.base_url} - [green]Authenticated[/green])[/b]'
+        else:
+            return ""
+
+    
+    def get_auth_details(self):
+        # print logs of auth status
+        if time.time() - self.time_since_last_auth > 840:
+            log.info(f'User session for \'{self.username}\' on \'{self.base_url}\' instance has expired')
+        elif time.time() - self.time_since_last_auth <= 840:
+            log.info(f'User \'{self.username}\' is authenticated to tenant {self.tenant_id} on \'{self.base_url}\'')
+        else:
+            log.info(f'Not currently authenticated to a Plextrac instance')
+
+
     def get_auth_headers(self):
         """
         checks is authorization is current and returns headers, otherwise tries to re-authenticate and return new auth headers

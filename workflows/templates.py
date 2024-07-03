@@ -1,4 +1,4 @@
-import time
+from rich import print
 
 import beaupy as binput
 
@@ -7,33 +7,25 @@ import utils.globals as globals
 import utils.log_handler as logger
 log = logger.log
 from utils.auth_handler import Auth
-import utils.input_utils as input
 
 
 class TemplatesWorkflow:
-    def __init__(self):
-        pass
-
-    def display_title_card(self):
-        log.debug(f'starting workflow \'templates\'')
-        title_card = [
-            " Report/Export Templates & Style Guides",
-            "------------------------------------------------------------------",
-            """
-    TODO: need to implement
-
-    returning to main menu...
-            """
-        ]
-        for i in title_card:
-            print(i)
-
 
     def start(self):
-        binput.console.clear()
         import main
-        self.display_title_card()
 
-        time.sleep(3)
+        if globals.auth == None:
+            log.info(f'Must authenticate to a Plextrac instance first')
+            globals.auth = Auth()
+            globals.auth.handle_authentication()
 
+        binput.console.clear()
+        log.debug(f'starting workflow \'templates\'')
+        print(f'''[b u]Report/Export Templates & Style Guides[/b u]
+
+TODO: need to implement
+
+returning to main menu''')
+
+        input(f'Press enter to continue...')
         main.start()

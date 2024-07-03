@@ -2,6 +2,7 @@ import re
 import time
 from hashlib import sha256
 from typing import List
+import os
 
 import utils.log_handler as logger
 log = logger.log
@@ -141,6 +142,13 @@ def sanitize_file_name(name:str, allow_spaces: bool = False) -> str:
     if not allow_spaces:
         new_name.replace(" ", "_")
     return new_name
+
+
+def create_directory(folder_path):
+    try:
+        os.mkdir(folder_path)
+    except FileExistsError as e:
+        log.debug(f'Could not create directory {folder_path}, already exists')
 
 
 def generate_flaw_id(title: str) -> int:
