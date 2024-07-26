@@ -163,3 +163,58 @@ def generate_flaw_id(title: str) -> int:
     """
     return int(sha256(title.encode('utf-8')).hexdigest(), 16) % 10 ** 8
     
+
+def get_script_root_path(start_path=None):
+    if start_path is None:
+        start_path = os.path.abspath(os.path.dirname(__file__))
+
+    # Specify a distinctive file or directory that identifies the project root
+    project_root_identifier = '.git'
+
+    current_path = start_path
+
+    while current_path != os.path.dirname(current_path):
+        if project_root_identifier in os.listdir(current_path):
+            return current_path
+        current_path = os.path.dirname(current_path)
+
+    return None
+
+
+def get_json_object_type(loaded_json):
+    """
+    :return: ["client", "report", "ptrac"]
+    :rtype: str
+    """
+    if _json_is_client(loaded_json): return "client"
+    if _json_is_report(loaded_json): return "report"
+    if _json_is_ptrac(loaded_json): return "ptrac"
+    return None
+    
+
+def _json_is_client(json_object) -> bool:
+    if "poc" not in list(json_object.keys()): return False
+    if "poc_email" not in list(json_object.keys()): return False
+    if "users" not in list(json_object.keys()): return False
+    if "doc_type" not in list(json_object.keys()): return False
+    if json_object['doc_type'] != "client": return False
+    return True
+
+
+def _json_is_report(json) -> bool:
+    if "template" not in list(json.keys()): return False
+    if "fields_template" not in list(json.keys()): return False
+    if "reviewers" not in list(json.keys()): return False
+    if "operators" not in list(json.keys()): return False
+    if "includeEvidence" not in list(json.keys()): return False
+    return True
+    
+
+def _json_is_ptrac(json) -> bool:
+    if "report_info" not in list(json.keys()): return False
+    if "flaws_array" not in list(json.keys()): return False
+    if "summary" not in list(json.keys()): return False
+    if "evidence" not in list(json.keys()): return False
+    if "client_info" not in list(json.keys()): return False
+    if "procedures" not in list(json.keys()): return False
+    return True

@@ -10,6 +10,7 @@ import utils.log_handler as logger
 log = logger.log
 from utils.auth_handler import Auth
 from workflows.clients_reports import ClientReportsWorkflow
+from workflows.reports import ReportsWorkflow
 from workflows.templates import TemplatesWorkflow
 
 
@@ -63,6 +64,7 @@ This script is broken up into multiple workflows that manage different modules o
     workflows_options = [
         f":authenticate to instance {globals.auth.get_auth_status() if globals.auth!=None else '(no authentication session)'}",
         ":clients and reports",
+        ":reports",
         # ":report/export templates & style guides",
         ":exit"
     ]
@@ -76,6 +78,7 @@ This script is broken up into multiple workflows that manage different modules o
 
     workflows = {
         ":clients and reports": ClientReportsWorkflow,
+        ":reports": ReportsWorkflow,
         ":report/export templates & style guides": TemplatesWorkflow,
     }
     workflows[workflow_selection]().start()

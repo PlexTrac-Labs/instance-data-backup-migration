@@ -24,6 +24,7 @@ import api
 class ClientZIP:
     client: dict|None
     reports: List[dict]
+    
 class ClientReportsWorkflow:
     
     def create_client_zip_with_json_objects(self, client, reports, folder_path):
@@ -51,72 +52,16 @@ class ClientReportsWorkflow:
             f.write(zip_buffer.getvalue())
         log.success(f'Created client ZIP for \'{client["name"]}\' with {len(reports)} report(s)')
 
-    
-    def get_json_object_type(self, loaded_json):
-        """
-        :return: ["client", "report", "ptrac"]
-        :rtype: str
-        """
-        if self._json_is_client(loaded_json): return "client"
-        if self._json_is_report(loaded_json): return "report"
-        if self._json_is_ptrac(loaded_json): return "ptrac"
-    
 
-    def _json_is_client(self, json_object) -> bool:
-        if "poc" not in list(json_object.keys()): return False
-        if "poc_email" not in list(json_object.keys()): return False
-        if "users" not in list(json_object.keys()): return False
-        if "doc_type" not in list(json_object.keys()): return False
-        if json_object['doc_type'] != "client": return False
-        return True
-
-
-    def _json_is_report(self, json) -> bool:
-        if "template" not in list(json.keys()): return False
-        if "fields_template" not in list(json.keys()): return False
-        if "reviewers" not in list(json.keys()): return False
-        if "operators" not in list(json.keys()): return False
-        if "includeEvidence" not in list(json.keys()): return False
-        return True
-    
-
-    def _json_is_ptrac(self, json) -> bool:
-        if "report_info" not in list(json.keys()): return False
-        if "flaws_array" not in list(json.keys()): return False
-        if "summary" not in list(json.keys()): return False
-        if "evidence" not in list(json.keys()): return False
-        if "client_info" not in list(json.keys()): return False
-        if "procedures" not in list(json.keys()): return False
-        return True
-    
-
-    # TODO move to utils file
-    def get_script_root_path(self, start_path=None):
-        if start_path is None:
-            start_path = os.path.abspath(os.path.dirname(__file__))
-
-        # Specify a distinctive file or directory that identifies the project root
-        project_root_identifier = '.git'
-
-        current_path = start_path
-
-        while current_path != os.path.dirname(current_path):
-            if project_root_identifier in os.listdir(current_path):
-                return current_path
-            current_path = os.path.dirname(current_path)
-
-        return None
-
-
-    # TODO verify initial_directory exists
-    # TODO move to utils file
     def select_zip_files(self, initial_directory=None):
         """
         Prompt the user to select multiple zip files and return their paths.
         """
-        print(f'Please select client ZIP(s) from file dialog popup...')
+        print(f'Please select client ZIP file(s) from file dialog popup...')
         root = Tk()
         root.withdraw()  # Hide the root window
+        if not (os.path.exists(initial_directory) and os.path.isdir(initial_directory)):
+            initial_directory = utils.get_script_root_path()
         file_paths = askopenfilenames(
             filetypes=[("Zip files", "*.zip")],
             initialdir=initial_directory
@@ -124,7 +69,6 @@ class ClientReportsWorkflow:
         return file_paths
     
 
-    # TODO create defined object that holds response
     def extract_data_from_client_ZIP(self, zip_path) -> ClientZIP:
         """
         Extract JSON files from a zip file and return them as a list of dictionaries.
@@ -137,14 +81,14 @@ class ClientReportsWorkflow:
                     if file_name.endswith('.json') or file_name.endswith('.ptrac'):
                         with zip_ref.open(file_name) as file:
                             json_data = json.load(file)
-                            if self.get_json_object_type(json_data) == "client":
+                            if utils.get_json_object_type(json_data) == "client":
                                 client_json = json_data
-                            elif self.get_json_object_type(json_data) == "ptrac":
+                            elif utils.get_json_object_type(json_data) == "ptrac":
                                 report_json_list.append(json_data)
                             else:
-                                log.exception(f'Encountered invalid file in client ZIP \'{file_name}\'. Skipping...')
+                                log.exception(f'Encountered invalid file in client ZIP \'{file_name}\'.')
                     else:
-                        log.exception(f'Encountered unknown file in client ZIP \'{file_name}\'. Skipping...')
+                        log.exception(f'Encountered unknown file in client ZIP \'{file_name}\'.')
             if client_json == None:
                 log.exception(f'Client ZIP file \'{zip_path}\' did not contain a valid client JSON')
                 return ClientZIP(None, [])
@@ -177,8 +121,8 @@ Overview of Steps:
   - choose whether to export reports with client
 - Import clients
   - select ZIP files of clients to import
-  - choose whether to import reports with client
-  - choose whether to check if the client exists
+  - choose whether to import reports with client - TODO
+  - choose whether to check if the client exists - TODO
               
 [b]Would you like to import or exports clients[/b]''')
         action = binput.select([":import clients", ":export clients", ":main menu"], cursor=">", cursor_style='white')
@@ -279,8 +223,6 @@ Overview of Steps:
 
         # have user select client ZIP files to import
         absolute_path = os.path.abspath("exported_data/client_ZIPs")
-        if not (os.path.exists(absolute_path) and os.path.isdir(absolute_path)):
-            absolute_path = self.get_script_root_path()
         zip_file_paths = self.select_zip_files(initial_directory=absolute_path)
         print(f'Selected {len(zip_file_paths)} ZIP file(s)\n')
         log.debug(f'selected {len(zip_file_paths)} ZIP file(s)')
