@@ -2,7 +2,7 @@ import json
 import io
 import zipfile
 import os
-from typing import List
+from typing import List, Union
 from dataclasses import dataclass
 from rich import print
 
@@ -22,7 +22,7 @@ import api
 
 @dataclass
 class ClientZIP:
-    client: dict|None
+    client: Union[dict, None]
     reports: List[dict]
     
 class ClientReportsWorkflow:

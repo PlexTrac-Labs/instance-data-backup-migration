@@ -2,6 +2,7 @@ from rich import print
 import os
 import json
 import io
+from typing import Union
 
 from tkinter import Tk
 from tkinter.filedialog import askopenfilenames
@@ -54,7 +55,7 @@ class ReportsWorkflow:
         return file_paths
     
 
-    def load_data_from_report_PTRAC(self, file_path) -> dict|None:
+    def load_data_from_report_PTRAC(self, file_path) -> Union[dict, None]:
         file_name = os.path.basename(file_path)
         try:
             with open(file_path) as file:
