@@ -5,6 +5,7 @@ import os
 from typing import List, Union
 from dataclasses import dataclass
 from rich import print
+from copy import deepcopy
 
 from tkinter import Tk
 from tkinter.filedialog import askopenfilenames
@@ -124,8 +125,8 @@ Overview of Steps:
     stripped before files are saved
 - Import clients
   - select ZIP files of clients to import
-  - choose whether to import reports with client - TODO not implemented
-  - choose whether to check if the client exists - TODO not implemented
+  - choose whether to import reports with client
+  - choose whether to check if the a client exists and merge data and reports vs creating new a client
               
 [b]Would you like to import or exports clients[/b]''')
         action = binput.select([":import clients", ":export clients", ":main menu"], cursor=">", cursor_style='white')
@@ -260,15 +261,27 @@ Overview of Steps:
         import_clients_options = binput.select_multiple(
             options=[
                 "exclude client reports",
-                "merge into existing clients - TODO need to implement"
+                "merge into existing clients"
             ],
             tick_character="x",
             tick_style="green",
             cursor_style="dark_goldenrod"
         )
-        print("- excluding reports in client import" if "exclude client reports" in import_clients_options else "- including reports under client(s)")
-        print("- updating clients and adding reports to existing clients" if "merge into existing clients" in import_clients_options else "- creating new client(s) for each ClientZIP file")
+        print("- excluding reports in client import" if "exclude client reports" in import_clients_options else "- including reports to import under client(s)")
+        print("- updating clients and adding reports to existing clients" if "merge into existing clients" in import_clients_options else "- creating new client(s) for each client ZIP file")
         print("")
+
+        # get clients from instance
+        clients = []
+        if "merge into existing clients" in import_clients_options:
+            spinner = binput.spinners.Spinner(binput.spinners.DOTS, "Loading clients from instance...")
+            spinner.start()
+            data.get_page_of_clients(clients=clients, auth=globals.auth)
+            spinner.stop()
+            if len(clients) < 1:
+                log.exception(f'Did not find any clients in Plextrac instance. Exiting to main menu')
+                input(f'Press enter to continue...')
+                main.start()
         
         # import data from client ZIPs
         metrics = IterationMetrics(len(zip_file_paths))
@@ -280,26 +293,42 @@ Overview of Steps:
                 log.info(metrics.print_iter_metrics())
                 continue
 
-            # create client
-            payload = zip.client
+            # check need to create new client
+            need_to_create_client = True
+            if "merge into existing clients" in import_clients_options:
+                if zip.client["client_id"] in list(map(lambda client: client["client_id"], clients)):
+                    need_to_create_client = False
+
+            client_id = None # client_id needs to be set to ID of newly created client or existing client in platform that will get updated and reports added to
+            payload = deepcopy(zip.client)
             payload.pop("cuid")
             payload.pop("tenant_id")
             payload.pop("client_id")
             # TODO figure out how to handle logo
             payload.pop("logo")
             payload.pop("doc_type")
-            # TODO figure out how to handle users
             payload.pop("users")
-            # payload['name'] = "Green Testing import" # TODO remove - only for testing
             # payload["tags"].append("green_delete") # TODO remove - only for testing
-            try:
-                response = api.clients.create_client(globals.auth.base_url, globals.auth.get_auth_headers(), payload)
-                client_id = response.json['client_id']
-                log.success(f'Created client \'{payload["name"]}\'')
-            except Exception as e:
-                log.exception(f'Could not create client. Skipping client and {len(zip.reports)} subsequent report(s)...')
-                log.info(metrics.print_iter_metrics())
-                continue
+            # create client
+            if need_to_create_client:
+                try:
+                    response = api.clients.create_client(globals.auth.base_url, globals.auth.get_auth_headers(), payload)
+                    client_id = response.json['client_id']
+                    log.success(f'Created client \'{payload["name"]}\'')
+                except Exception as e:
+                    log.exception(f'Could not create client. Skipping client and {len(zip.reports)} subsequent report(s)...')
+                    log.info(metrics.print_iter_metrics())
+                    continue
+            # update client
+            else:
+                client_id = zip.client["client_id"]
+                try:
+                    response = api.clients.update_client(globals.auth.base_url, globals.auth.get_auth_headers(), client_id, payload)
+                    log.success(f'Updated client \'{payload["name"]}\'')
+                except Exception as e:
+                    log.exception(f'Could not update client. Skipping client and {len(zip.reports)} subsequent report(s)...')
+                    log.info(metrics.print_iter_metrics())
+                    continue
 
             # import ptracs
             if not "exclude client reports" in import_clients_options:
