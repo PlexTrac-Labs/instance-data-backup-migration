@@ -15,6 +15,7 @@ log = logger.log
 from utils.auth_handler import Auth
 import utils.data_utils as data
 import utils.general_utils as utils
+from utils.log_handler import IterationMetrics
 import api
 
 
@@ -158,14 +159,17 @@ Overview of Steps:
         print("- excluding user data from report export" if "exclude user data" in export_report_options else "- keeping user data in report export")
         print("")
 
-        # create and export report PTRACs
+        # create folders for exported data
         utils.create_directory("exported_data")
         utils.create_directory("exported_data/report_PTRACs")
         folder_path = "exported_data/report_PTRACs"
 
+        # export report PTRACs
+        metrics = IterationMetrics(len(selected_reports))
         for report in selected_reports:
             include_user_data = False if "exclude user data" in export_report_options else True
             self.create_report_ptrac_with_json_object(report, folder_path, include_user_data=include_user_data)
+            log.info(metrics.print_iter_metrics())
 
         # return to main menu
         log.info(f'Finished exporting reports')
@@ -207,13 +211,13 @@ Overview of Steps:
         
         # import data from report PTRACs to selected client
         print(f'All selected PTRACs will be imported to create a new report under the selected client.')
-        spinner = binput.spinners.Spinner(binput.spinners.DOTS, "Importing reports from file(s)...")
-        spinner.start()
+        metrics = IterationMetrics(len(ptrac_file_paths))
         for file_path in ptrac_file_paths:
             # load ptrac dict from file
             ptrac = self.load_data_from_report_PTRAC(file_path)
             if ptrac == None:
                 log.exception(f'Skipping invalid report PTRAC file \'{file_path}\'...')
+                log.info(metrics.print_iter_metrics())
                 continue
 
             # TODO - add ability to add report tags at this step
@@ -229,9 +233,10 @@ Overview of Steps:
                 log.success(f'Created report \'{ptrac["report_info"]["name"]}\' for client \'{selected_client["name"]}\'')
             except Exception as e:
                 log.exception(f'Could not create report. Skipping...')
+                log.info(metrics.print_iter_metrics())
                 continue
 
-        spinner.stop()
+            log.info(metrics.print_iter_metrics())
 
         # return to main menu
         log.info(f'Finished importing reports')
