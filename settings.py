@@ -4,7 +4,7 @@ import logging
 # LOGGING
 console_log_level = logging.INFO
 file_log_level = logging.DEBUG
-save_logs_to_file = False
+save_logs_to_file = True
 
 # REQUESTS
 # if the Plextrac instance is running on https without valid certs, requests will respond with cert error

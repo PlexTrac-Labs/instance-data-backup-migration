@@ -173,7 +173,10 @@ Overview of Steps:
         # prompt user for action details
         print(f'Select options for exporting client(s)')
         export_clients_options = binput.select_multiple(
-            options=["include client reports", "exclude user data - TODO need to implement"], # TODO add option to exclude user, sensitivity
+            options=[
+                "include client reports",
+                "exclude user data - TODO need to implement" # TODO add option to exclude user, sensitivity
+            ],
             tick_character="x",
             tick_style="green",
             cursor_style="dark_goldenrod"
@@ -182,35 +185,43 @@ Overview of Steps:
         print("- excluding user data from client export" if "exclude user data" in export_clients_options else "- keeping user data in client export")
         print("")
 
+        # create folders for exported data
+        utils.create_directory("exported_data")
+        utils.create_directory("exported_data/client_ZIPs")
+        folder_path = "exported_data/client_ZIPs"
 
-        # get and sort reports from instance
-        sorted_client_reports = [[] for client in selected_clients]
+        # get all reports from instance
+        reports = []
         if "include client reports" in export_clients_options:
             spinner = binput.spinners.Spinner(binput.spinners.DOTS, "Loading reports from instance...")
             spinner.start()
-            reports = []
             data.get_page_of_reports(reports=reports, auth=globals.auth)
-            # sort reports into groups related to clients
-            for i, report_group in enumerate(sorted_client_reports):
+            spinner.stop()
+            if len(reports) < 1:
+                log.exception(f'Did not find any reports in Plextrac instance. Exiting to main menu')
+                input(f'Press enter to continue...')
+                main.start()
+
+        # download ptracs and save client ZIP files
+        metrics = IterationMetrics(len(selected_clients))
+        for client in selected_clients:
+            log.info(f'Processing client \'{client["name"]}\'')
+            client_reports = []
+            if "include client reports" in export_clients_options:
                 for report in reports:
-                    if report['client_id'] == clients[i]['client_id']:
+                    if report['client_id'] == client['client_id']:
                         # get ptrac for each report
                         ptrac = None
                         try:
                             response = api.reports.export_report_to_ptrac(globals.auth.base_url, globals.auth.get_auth_headers(), report['client_id'], report['id'])
                             ptrac = response.json
                         except Exception as e:
-                            log.exception(f'Could not download ptrac for report \'{report["name"]}\' under client \'{clients[i]["name"]}\', skipping...')
-                        report_group.append({"report_data":report, "ptrac":ptrac})
-            spinner.stop()
-
-        # create and export client ZIPs
-        utils.create_directory("exported_data")
-        utils.create_directory("exported_data/client_ZIPs")
-        folder_path = "exported_data/client_ZIPs"
-
-        for i, client in enumerate(selected_clients):
-            self.create_client_zip_with_json_objects(client, sorted_client_reports[i], folder_path)
+                            log.exception(f'Could not download ptrac for report \'{report["name"]}\' under client \'{client["name"]}\', skipping report...')
+                            continue
+                        client_reports.append({"report_data":report, "ptrac":ptrac})
+                        log.success(f'Downloaded ptrac for report \'{report["name"]}\' under client \'{client["name"]}\'')
+            self.create_client_zip_with_json_objects(client, client_reports, folder_path)
+            log.info(metrics.print_iter_metrics())
 
         # return to main menu
         log.info(f'Finished exporting clients')
@@ -228,12 +239,13 @@ Overview of Steps:
         log.debug(f'selected {len(zip_file_paths)} ZIP file(s)')
         
         # import data from client ZIPs
-        spinner = binput.spinners.Spinner(binput.spinners.DOTS, "Importing clients from file(s)...")
-        spinner.start()
+        metrics = IterationMetrics(len(zip_file_paths))
         for file_path in zip_file_paths:
+            log.info(f'Processing ZIP file \'{file_path}\'')
             zip = self.extract_data_from_client_ZIP(file_path)
             if zip.client == None:
                 log.exception(f'Skipping invalid client ZIP file \'{file_path}\'...')
+                log.info(metrics.print_iter_metrics())
                 continue
 
             # create client
@@ -247,13 +259,14 @@ Overview of Steps:
             # TODO figure out how to handle users
             payload.pop("users")
             # payload['name'] = "Green Testing import" # TODO remove - only for testing
-            payload["tags"].append("green_delete") # TODO remove - only for testing
+            # payload["tags"].append("green_delete") # TODO remove - only for testing
             try:
                 response = api.clients.create_client(globals.auth.base_url, globals.auth.get_auth_headers(), payload)
                 client_id = response.json['client_id']
                 log.success(f'Created client \'{payload["name"]}\'')
             except Exception as e:
                 log.exception(f'Could not create client. Skipping client and {len(zip.reports)} subsequent report(s)...')
+                log.info(metrics.print_iter_metrics())
                 continue
 
             # import ptracs
@@ -270,7 +283,7 @@ Overview of Steps:
                     log.exception(f'Could not create report. Skipping...')
                     continue
 
-        spinner.stop()
+            log.info(metrics.print_iter_metrics())
 
         # return to main menu
         log.info(f'Finished importing clients')
