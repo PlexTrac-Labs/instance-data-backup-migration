@@ -227,7 +227,7 @@ Overview of Steps:
                         except Exception as e:
                             log.exception(f'Could not download ptrac for report \'{report["name"]}\' under client \'{client["name"]}\', skipping report...')
                             continue
-                        
+
                         # strip report user data
                         if "exclude user data" in export_clients_options:
                             ptrac["report_info"]["reviewers"] = []
@@ -254,6 +254,21 @@ Overview of Steps:
         zip_file_paths = self.select_zip_files(initial_directory=absolute_path)
         print(f'Selected {len(zip_file_paths)} ZIP file(s)\n')
         log.debug(f'selected {len(zip_file_paths)} ZIP file(s)')
+
+        # prompt user for action details
+        print(f'Select options for importing client(s)')
+        import_clients_options = binput.select_multiple(
+            options=[
+                "exclude client reports",
+                "merge into existing clients - TODO need to implement"
+            ],
+            tick_character="x",
+            tick_style="green",
+            cursor_style="dark_goldenrod"
+        )
+        print("- excluding reports in client import" if "exclude client reports" in import_clients_options else "- including reports under client(s)")
+        print("- updating clients and adding reports to existing clients" if "merge into existing clients" in import_clients_options else "- creating new client(s) for each ClientZIP file")
+        print("")
         
         # import data from client ZIPs
         metrics = IterationMetrics(len(zip_file_paths))
@@ -287,18 +302,19 @@ Overview of Steps:
                 continue
 
             # import ptracs
-            for ptrac in zip.reports:
-                try:
-                    json_str = json.dumps(ptrac)
-                    json_file_like = io.BytesIO(json_str.encode('utf-8'))
-                    multipart_form_data = {
-                        'file': json_file_like
-                    }
-                    response = api.reports.import_ptrac_report(globals.auth.base_url, globals.auth.get_auth_headers(), client_id, multipart_form_data)
-                    log.success(f'Created report \'{ptrac["report_info"]["name"]}\' for client \'{zip.client["name"]}\'')
-                except Exception as e:
-                    log.exception(f'Could not create report. Skipping...')
-                    continue
+            if not "exclude client reports" in import_clients_options:
+                for ptrac in zip.reports:
+                    try:
+                        json_str = json.dumps(ptrac)
+                        json_file_like = io.BytesIO(json_str.encode('utf-8'))
+                        multipart_form_data = {
+                            'file': json_file_like
+                        }
+                        response = api.reports.import_ptrac_report(globals.auth.base_url, globals.auth.get_auth_headers(), client_id, multipart_form_data)
+                        log.success(f'Created report \'{ptrac["report_info"]["name"]}\' for client \'{zip.client["name"]}\'')
+                    except Exception as e:
+                        log.exception(f'Could not create report. Skipping...')
+                        continue
 
             log.info(metrics.print_iter_metrics())
 
