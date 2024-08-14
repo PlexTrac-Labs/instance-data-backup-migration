@@ -119,10 +119,13 @@ Overview of Steps:
 - Export clients
   - select which clients to export
   - choose whether to export reports with client
+  - choose whether to keep user data in the generated files. If you choose to exclude
+    user data, the client POC fields and report Operators and Reviewers will be
+    stripped before files are saved
 - Import clients
   - select ZIP files of clients to import
-  - choose whether to import reports with client - TODO
-  - choose whether to check if the client exists - TODO
+  - choose whether to import reports with client - TODO not implemented
+  - choose whether to check if the client exists - TODO not implemented
               
 [b]Would you like to import or exports clients[/b]''')
         action = binput.select([":import clients", ":export clients", ":main menu"], cursor=">", cursor_style='white')
@@ -175,7 +178,7 @@ Overview of Steps:
         export_clients_options = binput.select_multiple(
             options=[
                 "include client reports",
-                "exclude user data - TODO need to implement" # TODO add option to exclude user, sensitivity
+                "exclude user data"
             ],
             tick_character="x",
             tick_style="green",
@@ -206,6 +209,12 @@ Overview of Steps:
         metrics = IterationMetrics(len(selected_clients))
         for client in selected_clients:
             log.info(f'Processing client \'{client["name"]}\'')
+            # strip client user data
+            if "exclude user data" in export_clients_options:
+                client["poc"] = ""
+                client["poc_email"] = ""
+                client["users"] = {}
+
             client_reports = []
             if "include client reports" in export_clients_options:
                 for report in reports:
@@ -218,6 +227,14 @@ Overview of Steps:
                         except Exception as e:
                             log.exception(f'Could not download ptrac for report \'{report["name"]}\' under client \'{client["name"]}\', skipping report...')
                             continue
+                        
+                        # strip report user data
+                        if "exclude user data" in export_clients_options:
+                            ptrac["report_info"]["reviewers"] = []
+                            ptrac["report_info"]["operators"] = []
+                            ptrac["client_info"]["poc"] = ""
+                            ptrac["client_info"]["poc_email"] = ""
+
                         client_reports.append({"report_data":report, "ptrac":ptrac})
                         log.success(f'Downloaded ptrac for report \'{report["name"]}\' under client \'{client["name"]}\'')
             self.create_client_zip_with_json_objects(client, client_reports, folder_path)
