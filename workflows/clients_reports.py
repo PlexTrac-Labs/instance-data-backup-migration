@@ -296,7 +296,7 @@ Overview of Steps:
             # check need to create new client
             need_to_create_client = True
             if "merge into existing clients" in import_clients_options:
-                if zip.client["client_id"] in list(map(lambda client: client["client_id"], clients)):
+                if zip.client["name"] in list(map(lambda client: client["name"], clients)):
                     need_to_create_client = False
 
             client_id = None # client_id needs to be set to ID of newly created client or existing client in platform that will get updated and reports added to
@@ -321,7 +321,8 @@ Overview of Steps:
                     continue
             # update client
             else:
-                client_id = zip.client["client_id"]
+                matched_clients = list(filter(lambda client: zip.client["name"] == client["name"], clients))
+                client_id = matched_clients[0]["client_id"]
                 try:
                     response = api.clients.update_client(globals.auth.base_url, globals.auth.get_auth_headers(), client_id, payload)
                     log.success(f'Updated client \'{payload["name"]}\'')
