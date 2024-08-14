@@ -20,11 +20,16 @@ import api
 
 class ReportsWorkflow:
 
-    def create_report_ptrac_with_json_object(self, report, folder_path):
+    def create_report_ptrac_with_json_object(self, report, folder_path, include_user_data:bool=True):
         # get PTRAC JSON
         try:
             response = api.reports.export_report_to_ptrac(globals.auth.base_url, globals.auth.get_auth_headers(), report['client_id'], report['id'])
             ptrac = response.json
+            if not include_user_data:
+                ptrac["report_info"]["reviewers"] = []
+                ptrac["report_info"]["operators"] = []
+                ptrac["client_info"]["poc"] = ""
+                ptrac["client_info"]["poc_email"] = ""
         except Exception as e:
             log.exception(f'Could not download ptrac for report \'{report["name"]}\', skipping...')
             return
@@ -87,10 +92,12 @@ as PTRAC files, which can be reimported to a client later.
 Overview of Steps:
 - Export reports
   - select which reports to export
+  - choose whether to keep user data in the generated files. If you choose to exclude
+    user data, report Operators and Reviewers will be stripped before files are saved
 - Import reports
   - select PTRAC files of reports to import
   - select an existing client in Plextrac to import reports to
-  - choose whether to check if the client exists - TODO
+  - choose whether to check if the client exists
               
 [b]Would you like to import or exports reports[/b]''')
         action = binput.select([":import reports", ":export reports", ":main menu"], cursor=">", cursor_style='white')
@@ -138,13 +145,27 @@ Overview of Steps:
         )
         print(f'Selected {len(selected_reports)} reports(s)\n')
 
+        # prompt user for action details
+        print(f'Select options for exporting report(s)')
+        export_report_options = binput.select_multiple(
+            options=[
+                "exclude user data"
+            ],
+            tick_character="x",
+            tick_style="green",
+            cursor_style="dark_goldenrod"
+        )
+        print("- excluding user data from report export" if "exclude user data" in export_report_options else "- keeping user data in report export")
+        print("")
+
         # create and export report PTRACs
         utils.create_directory("exported_data")
         utils.create_directory("exported_data/report_PTRACs")
         folder_path = "exported_data/report_PTRACs"
 
         for report in selected_reports:
-            self.create_report_ptrac_with_json_object(report, folder_path)
+            include_user_data = False if "exclude user data" in export_report_options else True
+            self.create_report_ptrac_with_json_object(report, folder_path, include_user_data=include_user_data)
 
         # return to main menu
         log.info(f'Finished exporting reports')
