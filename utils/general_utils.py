@@ -216,5 +216,5 @@ def _json_is_ptrac(json) -> bool:
     if "summary" not in list(json.keys()): return False
     if "evidence" not in list(json.keys()): return False
     if "client_info" not in list(json.keys()): return False
-    if "procedures" not in list(json.keys()): return False
+    # if "procedures" not in list(json.keys()): return False
     return True

@@ -276,6 +276,7 @@ Overview of Steps:
                     try:
                         response = api.clients.create_client(globals.auth.base_url, globals.auth.get_auth_headers(), payload)
                         selected_client = response.json
+                        selected_client["name"] = ptrac["client_info"]["name"]
                         client_id = response.json['client_id']
                         log.success(f'Created client \'{payload["name"]}\'')
                     except Exception as e:
