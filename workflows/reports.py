@@ -170,7 +170,8 @@ Overview of Steps:
             tick_style="green",
             cursor_style="dark_goldenrod"
         )
-        print("- excluding user data from report export" if "exclude user data" in export_report_options else "- keeping user data in report export")
+        exclude_user_data = "exclude user data" in export_report_options
+        print("- excluding user data from report export" if exclude_user_data else "- keeping user data in report export")
         print("")
 
         # create folders for exported data
@@ -181,8 +182,7 @@ Overview of Steps:
         # export report PTRACs
         metrics = IterationMetrics(len(selected_reports))
         for report in selected_reports:
-            include_user_data = False if "exclude user data" in export_report_options else True
-            self.create_report_ptrac_with_json_object(report, folder_path, include_user_data=include_user_data)
+            self.create_report_ptrac_with_json_object(report, folder_path, include_user_data=not exclude_user_data)
             log.info(metrics.print_iter_metrics())
 
         # return to main menu
@@ -229,6 +229,20 @@ Overview of Steps:
             input(f'Press enter to continue...')
             main.start()
 
+        # prompt user for action details
+        print(f'\nSelect options for importing report(s)')
+        import_report_options = binput.select_multiple(
+            options=[
+                "skip existing reports (reports with same name in a client)",
+            ],
+            tick_character="x",
+            tick_style="green",
+            cursor_style="dark_goldenrod"
+        )
+        skip_existing_reports = "skip existing reports (reports with same name in a client)" in import_report_options
+        print("- skipping existing reports" if skip_existing_reports else "- importing all reports even if they create duplicates")
+        print("")
+
         # MANUAL METHOD - user selects clients
         if method == "manual":
             print(f'[b]Loaded Client list:[/b]')
@@ -241,7 +255,21 @@ Overview of Steps:
                 page_size=10
             )
             print(f'Selected \'{selected_client["name"]}\'\n')
-        
+
+        # setup for - skipping existing reports
+        if skip_existing_reports:
+            spinner = binput.spinners.Spinner(binput.spinners.DOTS, "Loading reports from instance...")
+            spinner.start()
+            reports = []
+            data.get_page_of_reports(reports=reports, auth=globals.auth)
+            spinner.stop()
+
+            dict_of_report_names_by_client_id = {}
+            for report in reports:
+                if report['client_id'] not in dict_of_report_names_by_client_id:
+                    dict_of_report_names_by_client_id[report['client_id']] = []
+                dict_of_report_names_by_client_id[report['client_id']].append(report['name'])
+
         # import data from report PTRACs to selected client
         metrics = IterationMetrics(len(ptrac_file_paths))
         for file_path in ptrac_file_paths:
@@ -283,6 +311,13 @@ Overview of Steps:
                         log.exception(f'Could not create client. Skipping client ptrac...')
                         log.info(metrics.print_iter_metrics())
                         continue
+
+            # determine if report already exists
+            if skip_existing_reports:
+                if report['name'] in dict_of_report_names_by_client_id.get(client_id, []):
+                    log.success(f'Report \'{ptrac["report_info"]["name"]}\' already exists under client \'{selected_client["name"]}\'. Skipping...')
+                    log.info(metrics.print_iter_metrics())
+                    continue
 
             # import ptrac
             try:
